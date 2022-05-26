@@ -1,6 +1,6 @@
 # busDispatchingSystem
 
-This owners of this project are 沈原灏/李帛阳/焦稚雅.
+The owners of this project are 沈原灏/李帛阳/焦稚雅.
 
 From this project we build a bus dispatching system based on C/CPP.
 
