@@ -13,5 +13,5 @@ My task is to program the basic data structure and the second algorithm.
 
 The project is currently planned to be divided into three additional branches
 - 概要设计书
-- OJ版代码 （to be completed）
+- OJ版代码
 - Qt动画版系统（to do）
