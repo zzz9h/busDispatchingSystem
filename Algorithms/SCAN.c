@@ -59,15 +59,15 @@ B initBus() {
 //初始化需求状态
 R initRequest() {
     R request = {
-            .content = {0},
             .isServed = false,
             .nextPtr = NULL,
             .prePtr = NULL,
             .fromStation = -1,
-            .toStation = -1,           
+            .toStation = -1,
     };
     return request;
 }
+
 
 //初始化站台状态
 S initStation() {
@@ -94,6 +94,7 @@ R *createRequire() {
     R *currentPtr = NULL;
     while (true) {
         currentPtr = (R *) malloc(sizeof(R));
+        *currentPtr = initRequest();
         scanf("%s", inputRequire);
         if (strcmp(inputRequire, "end") == 0) {
             break;
@@ -127,7 +128,6 @@ R *createRequire() {
     return headPtr;
 }
 //请求更新
-
 int reRequest(int time){
     int i = 0, isEnd = 0;
     R *presentPtr;
@@ -140,32 +140,35 @@ int reRequest(int time){
         }
         presentPtr = presentPtr->nextPtr;
     }
+    if (presentPtr == NULL)
+    {
+        isEnd = 1;
+    }
     //改请求列表
-    while (strcmp(presentPtr->content, "clock") != 0)
+    while (isEnd != 1 && strcmp(presentPtr->content, "clock") != 0)
     {
         if (strcmp(presentPtr->content, "clockwise") == 0)
         {
-            station.clockwise[presentPtr->fromStation - 1] = 1;
+            station.clockwise[presentPtr->fromStation - 1] = '1';
         }
         else if (strcmp(presentPtr->content, "counterclockwise") == 0)
         {
-            station.counterclockwise[presentPtr->fromStation - 1] = 1;
+            station.counterclockwise[presentPtr->fromStation - 1] = '1';
         }
         else if (strcmp(presentPtr->content, "target") == 0)
         {
-            bus.target[presentPtr->toStation - 1] == 1;
-        }
-        else if (strcmp(presentPtr->content, "end") == 0)
-        {
-            isEnd = 1;
-            break;
+            bus.target[presentPtr->toStation - 1] = '1';
         }
         presentPtr = presentPtr->nextPtr;
+        if (presentPtr == NULL)
+        {
+            isEnd = 1;
+        }
     }
     return isEnd;
 }
 //是否没有请求，改进：应该可以用公交车是否有目标车站简化代替（TIME=0？）
-void isEmptyRequest(int time){
+void isEmptyRequest(){
     int i = 0;
     for (i = 0; station.clockwise[i] != 0; i++){
         if (station.clockwise[i] == '1')
@@ -174,10 +177,20 @@ void isEmptyRequest(int time){
             break;
         }
     }
-    if (i != -1)    //顺时针无请求
+    if (i != -1)    //排查逆时针
     {
         for (i = 0; station.counterclockwise[i] != 0; i++){
             if (station.counterclockwise[i] == '1')
+            {
+                i = -1;
+                break;
+            }
+        }
+    }
+    if (i != -1)    //排查target
+    {
+        for (i = 0; bus.target[i] != 0; i++){
+            if (bus.target[i] == '1')
             {
                 i = -1;
                 break;
@@ -194,14 +207,14 @@ void isEmptyRequest(int time){
     }
 }
 
-int stationDeal(int time, int key){//到站处理, key=1是完成当前请求时的处理
-    int i = 0, isStop = 0;//i,计数clock次数; isStop该站点停不停
+void stationDeal(int time, int key){//到站处理, key=1是完成当前请求时的处理
+    int i = 0;//i,计数clock次数
     int posStation = bus.pos / GAP;//当前站点位置，0，1，2……，MAXN-1.
     R *presentPtr;
     presentPtr = headPtr; 
-    char string1[MAXN] = "clock", string2[MAXN] = "end";
+    char string1[MAXN] = "clock";
     //遍历到此时为止的需求记录列表
-    while (i != time && strcmp(presentPtr->content, string2) == 0)
+    while (i != (time + 1) && presentPtr != NULL)//time+1
     {
         if (strcmp(presentPtr->content, string1) == 0)  //clock指令
         {
@@ -209,18 +222,16 @@ int stationDeal(int time, int key){//到站处理, key=1是完成当前请求时
         }
         else    //其他指令
         {
-            if (bus.curTargetStationTo == (posStation + 1) && presentPtr->isServed == 0)
+            if (presentPtr->toStation == (posStation + 1) && presentPtr->isServed != 1)
             {   //车上请求列表中某未完成的请求
                 presentPtr->isServed = 1;
-                bus.target[posStation] = 0;
-                isStop = 2;
+                bus.target[posStation] = '0';
             }
-            else if (presentPtr->fromStation == (posStation + 1) && presentPtr->isServed == 0)
+            else if (presentPtr->fromStation == (posStation + 1) && presentPtr->isServed != 1)
             {   //站台
                 presentPtr->isServed = 1;
-                station.clockwise[posStation] = 0;
-                station.counterclockwise[posStation] = 0;
-                isStop = 2;
+                station.clockwise[posStation] = '0';
+                station.counterclockwise[posStation] = '0';
             }
         }
         presentPtr = presentPtr->nextPtr;
@@ -229,54 +240,12 @@ int stationDeal(int time, int key){//到站处理, key=1是完成当前请求时
     {
         bus.curTargetStationTo = -1;
     }
-    return isStop;
 }
 void stationTo(){
-    char wholeClockwise[MAXN] = {0}, wholeCounterclockwise[MAXN] = {0};
+    char wholeRequest[MAXN] = {0};
     int i = 0, prePos = bus.pos / GAP;//prePos记录完成请求的终止位置，0，1，…，MAXN-1.
-    int gap;//gap记录到下一目的站数
-    //总请求列表
-    while (i < TOTAL_STATION)
-    {
-        if (station.clockwise[i] == '1' || bus.target[i] == '1')
-        {
-            wholeClockwise[i] = '1';
-        }
-        else
-        {
-            wholeClockwise[i] = '0';
-        }
-        if (station.counterclockwise[i] == '1' || bus.target[i] == '1'){
-            wholeCounterclockwise[i] = '1';
-        }
-        else
-        {
-            wholeCounterclockwise[i] = '0';
-        }
-        i ++;
-    }
-    //按方向选定目标站点
-    i = prePos;
-    if (bus.isClockwise == 1)
-    {
-        i = (i + 1) % TOTAL_STATION;
-        while (wholeClockwise[i] != '1')
-        {
-            i = (i + 1) % TOTAL_STATION;
-        }
-    }
-    else
-    {
-        i = (i - 1) % TOTAL_STATION;
-        while (wholeCounterclockwise[i] != '1')
-        {
-            i = (i - 1) % TOTAL_STATION;
-        }
-    }
-    bus.isTask = 1;
-    bus.curTargetStationTo = i + 1;
-    //判断是否转向
-    int turnN;
+    int sum = 0;//gap记录到下一目的站数,记录该方向寻找路程（是否过半）
+    int turnN;//转向指标
     if (TOTAL_STATION % 2 == 0)
     {
         turnN = TOTAL_STATION / 2;
@@ -285,18 +254,58 @@ void stationTo(){
     {
         turnN = (TOTAL_STATION - 1) / 2;
     }
-    gap = i - prePos;
-    if (abs(gap) > turnN)
+    //总请求列表
+    while (i < TOTAL_STATION)
     {
-        if (bus.isClockwise == 0)
+        if (station.clockwise[i] == '1' || station.counterclockwise[i] == '1' || bus.target[i] == '1')
         {
-            bus.isClockwise == 1;
+            wholeRequest[i] = '1';
         }
         else
         {
-            bus.isClockwise == 0;
+            wholeRequest[i] = '0';
+        }
+        i ++;
+    }
+    //按方向选定目标站点
+    i = prePos;
+    if (bus.isClockwise == 1)
+    {
+        while (wholeRequest[i] != '1')
+        {
+            i = (i + 1) % TOTAL_STATION;
+            sum ++;
+            if (sum > turnN)
+            {
+                bus.isClockwise = 0;
+                i = prePos;
+                while (wholeRequest[i] != '1')
+                {
+                    i = (i + TOTAL_STATION - 1) % TOTAL_STATION;
+                }
+                break;
+            }
         }
     }
+    else
+    {
+        while (wholeRequest[i] != '1')
+        {
+            i = (i + TOTAL_STATION - 1) % TOTAL_STATION;
+            sum ++;
+            if (sum > turnN)
+            {
+                bus.isClockwise = 1;
+                i = prePos;
+                while (wholeRequest[i] != '1')
+                {
+                    i = (i + 1) % TOTAL_STATION;
+                }
+                break;
+            }
+        }
+    }
+    bus.curTargetStationTo = i + 1;
 }
 //该站是否要停
 void needStop(){
@@ -314,7 +323,7 @@ void scanMove(){
     }
     else
     {
-        bus.pos = (bus.pos - 1) % LENGTH;
+        bus.pos = (bus.pos + LENGTH - 1) % LENGTH;
     }
 }
 
@@ -348,13 +357,95 @@ void SCAN(){
     reRequest(TIME);
     while (isEnd != 1)
     {
-        isEmptyRequest(TIME);
+        isEmptyRequest();
         if (bus.isTask == 1)//请求列表不空
         {
-            if (TIME = 0)
+            if (bus.curTargetStationTo == -1)
             {
                 stationTo();
             }
+            if (bus.isTargetWait == 1)
+            {
+                stationDeal(TIME, 1);  //站台处理
+                isEmptyRequest();
+                if (bus.isTask == 1)
+                {
+                    stationTo();
+                    bus.isTargetWait = -1;
+                }
+                else
+                {
+                    bus.isTargetWait = -1;
+                }                
+            }
+            else if (bus.isTempWait == 1)
+            {
+                stationDeal(TIME, 0);
+                bus.isTempWait = -1;
+            }
+            else    //不属于预判停靠；
+            {
+                if (bus.isTempWait == -1 || bus.isTargetWait == -1)
+                {
+                    stationDeal(TIME, 0);
+                    bus.isTempWait = 0;
+                    bus.isTargetWait = 0;
+                }
+                scanMove();
+                if (bus.pos % GAP == 0 && (bus.pos / GAP + 1) == bus.curTargetStationTo && bus.isTargetWait == 0)
+                {
+                    bus.isTargetWait = 1;
+                }
+                else if (bus.pos % GAP == 0 && (bus.pos / GAP + 1) != bus.curTargetStationTo && bus.isTempWait == 0)
+                {
+                    needStop();
+                }
+            }
+        }
+        else
+        {
+            bus.isTargetWait = -1;//标志已等待1s，后续原地请求可立刻完成
+        }
+        TIME ++;
+        output();
+//        if (TIME == 5){//linshi
+//            TIME = 5;
+//        }
+        isEnd = reRequest(TIME);
+    }
+    isEmptyRequest();
+    //end后有未完成的请求
+    while (bus.isTask == 1)//请求列表不空
+    {
+        if (bus.curTargetStationTo == -1)
+        {
+            stationTo();
+        }
+        if (bus.isTargetWait == 1)
+        {
+            stationDeal(TIME, 1);  //站台处理
+            stationTo();
+            bus.isTargetWait = -1;
+        }
+        else if (bus.isTempWait == 1)
+        {
+            stationDeal(TIME, 0);
+            bus.isTempWait = -1;
+        }
+        else    //不属于预判停靠；
+        {
+            if (bus.isTempWait == -1 || bus.isTargetWait == -1)
+            {
+                stationDeal(TIME, 0);
+                bus.isTempWait = 0;
+                bus.isTargetWait = 0;
+            }
+            isEmptyRequest();
+            if (bus.isTask == 0)
+            {
+                break;
+            }
+            scanMove();
             if (bus.pos % GAP == 0 && (bus.pos / GAP + 1) == bus.curTargetStationTo && bus.isTargetWait == 0)
             {
                 bus.isTargetWait = 1;
@@ -362,37 +453,20 @@ void SCAN(){
             else if (bus.pos % GAP == 0 && (bus.pos / GAP + 1) != bus.curTargetStationTo && bus.isTempWait == 0)
             {
                 needStop();
-                if (bus.isTempWait == 0)
-                {
-                    scanMove();
-                }
-            }
-            else if (bus.isTargetWait == 1)
-            {
-                stationDeal(TIME, 1);  //站台处理
-                stationTo();
-                bus.isTargetWait = 0;
-            }
-            else if (bus.isTempWait == 1)
-            {
-                stationDeal(TIME, 0);
-                bus.isTempWait = 0;
-            }
-            else    //不在站台位置；
-            {
-                scanMove();
             }
         }
         TIME ++;
         output();
-        isEnd = reRequest(TIME);
+        isEmptyRequest();
     }
 }
 
 int main(void){
+    bus = initBus();
+    station = initStation();
     headPtr = createRequire();
     R* ptr = headPtr;
-    //SCAN();
+    SCAN();
     puts("end");
     freeRequire();
     return 0;
